@@ -18,6 +18,7 @@ from providers.index import (
     BaseProvider,
     register_provider,
     ModelInfo,
+    normalize_response_content,
 )
 from providers.utils import extract_json_from_code_block, generate_example_from_schema
 from services.templates import create_messages_from_template
@@ -177,7 +178,11 @@ class OpenAICompatibleClient(BaseProvider):
             )
 
             try:
-                content = json.loads(content) if content else None
+                content = (
+                    normalize_response_content(json.loads(content))
+                    if content
+                    else None
+                )
             except json.JSONDecodeError:
                 pass
 
@@ -270,7 +275,7 @@ class OpenAICompatibleClient(BaseProvider):
             if not json_str:
                 raise ValueError("No JSON code block found in the response.")
 
-            parsed_content = json.loads(json_str)
+            parsed_content = normalize_response_content(json.loads(json_str))
 
             usage = ChatCompletionUsage(
                 prompt_tokens=api_response.usage.prompt_tokens,

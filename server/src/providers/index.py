@@ -117,6 +117,17 @@ class ChatCompletionErrorResponse(BaseModel):
     latency_ms: int
 
 
+def normalize_response_content(content: Any) -> Any:
+    """Accept providers that wrap one structured JSON object in a list."""
+    if (
+        isinstance(content, list)
+        and len(content) == 1
+        and isinstance(content[0], dict)
+    ):
+        return content[0]
+    return content
+
+
 class JsonMode(str, Enum):
     api_native = "api_native"
     prompt_engineering = "prompt_engineering"
