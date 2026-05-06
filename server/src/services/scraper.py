@@ -1,6 +1,7 @@
 from typing import Literal
 from html_to_markdown import convert_to_markdown
 import httpx
+from urllib.parse import unquote, urlparse
 from bs4 import BeautifulSoup
 from bs4.element import Tag as Bs4Tag  # type: ignore
 
@@ -112,6 +113,32 @@ def html_to_markdown(html_content: str) -> str:
     return convert_to_markdown(cleaned_html_str).strip()
 
 
+def get_fandom_api_request(url: str) -> tuple[str, dict[str, str]] | None:
+    parsed_url = urlparse(url)
+    if not parsed_url.netloc.endswith(".fandom.com"):
+        return None
+
+    wiki_prefix = "/wiki/"
+    if not parsed_url.path.startswith(wiki_prefix):
+        return None
+
+    page_name = unquote(parsed_url.path[len(wiki_prefix) :])
+    if not page_name:
+        return None
+
+    api_url = f"{parsed_url.scheme}://{parsed_url.netloc}/api.php"
+    return (
+        api_url,
+        {
+            "action": "parse",
+            "page": page_name,
+            "prop": "text",
+            "redirects": "1",
+            "format": "json",
+        },
+    )
+
+
 class Scraper:
     """A simple scraper to fetch and parse web content."""
 
@@ -132,7 +159,33 @@ class Scraper:
         cookies = {"ageVerified": "true"}
         async with httpx.AsyncClient(follow_redirects=True) as client:
             response = await client.get(url, timeout=self.timeout, cookies=cookies)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as error:
+                if error.response.status_code != 403:
+                    raise
+
+                fandom_request = get_fandom_api_request(url)
+                if not fandom_request:
+                    raise
+
+                api_url, params = fandom_request
+                response = await client.get(api_url, timeout=self.timeout, params=params)
+                response.raise_for_status()
+                data = response.json()
+                html = data.get("parse", {}).get("text", {}).get("*")
+                if not isinstance(html, str):
+                    raise ValueError("Invalid Fandom API response: missing parsed HTML")
+
+                if clean:
+                    html = clean_html(html)
+                if type == "markdown":
+                    return html_to_markdown(html)
+
+                if pretty and type == "html":
+                    html = BeautifulSoup(html, "lxml").prettify()
+                return html.strip()
+
             content_type = response.headers.get("Content-Type", "")
             if "text/html" not in content_type:
                 raise ValueError(f"Invalid content type: {content_type}")
