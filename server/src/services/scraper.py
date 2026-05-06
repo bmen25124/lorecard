@@ -114,7 +114,10 @@ def clean_html(html_content: str) -> str:
 
 def html_to_markdown(html_content: str) -> str:
     cleaned_html_str = clean_html(html_content)
-    return convert_html_to_markdown(cleaned_html_str).strip()
+    markdown = convert_html_to_markdown(cleaned_html_str)
+    if not isinstance(markdown, str) and hasattr(markdown, "content"):
+        markdown = markdown.content
+    return str(markdown).strip()
 
 
 def get_fandom_api_request(url: str) -> tuple[str, dict[str, str]] | None:

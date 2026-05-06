@@ -2,6 +2,7 @@ import httpx
 import pytest
 
 from services.scraper import Scraper
+from services import scraper
 
 
 @pytest.mark.asyncio
@@ -75,3 +76,14 @@ async def test_non_fandom_403_does_not_use_mediawiki_fallback(monkeypatch):
 
     with pytest.raises(httpx.HTTPStatusError):
         await Scraper().get_content(blocked_url, type="markdown", clean=True)
+
+
+def test_html_to_markdown_accepts_new_conversion_result(monkeypatch):
+    class ConversionResult:
+        content = "Converted markdown"
+
+    monkeypatch.setattr(
+        scraper, "convert_html_to_markdown", lambda html: ConversionResult()
+    )
+
+    assert scraper.html_to_markdown("<p>Converted markdown</p>") == "Converted markdown"
