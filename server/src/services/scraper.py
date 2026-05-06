@@ -1,9 +1,13 @@
 from typing import Literal
-from html_to_markdown import convert_to_markdown
 import httpx
 from urllib.parse import unquote, urlparse
 from bs4 import BeautifulSoup
 from bs4.element import Tag as Bs4Tag  # type: ignore
+
+try:
+    from html_to_markdown import convert_to_markdown as convert_html_to_markdown
+except ImportError:
+    from html_to_markdown import convert as convert_html_to_markdown
 
 
 def clean_html(html_content: str) -> str:
@@ -110,7 +114,7 @@ def clean_html(html_content: str) -> str:
 
 def html_to_markdown(html_content: str) -> str:
     cleaned_html_str = clean_html(html_content)
-    return convert_to_markdown(cleaned_html_str).strip()
+    return convert_html_to_markdown(cleaned_html_str).strip()
 
 
 def get_fandom_api_request(url: str) -> tuple[str, dict[str, str]] | None:
