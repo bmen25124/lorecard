@@ -262,3 +262,7 @@ Now, open the new `.env` file and add your API keys. Don't forget to add `APP_SE
 
 Once running, the application will be available at:
 **[http://127.0.0.1:3000/](http://127.0.0.1:3000/)**
+
+To access it from another device on the same network, open `http://<computer-lan-ip>:3000/` on that device and make sure your firewall allows inbound traffic on port `3000`.
+
+For access outside your home network, use a private network tool such as Tailscale, or deploy Lorecard on a VPS behind a reverse proxy such as nginx. Avoid exposing the app directly to the public internet without your own access controls.
