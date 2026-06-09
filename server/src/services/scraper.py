@@ -3,6 +3,17 @@ from html_to_markdown import convert_to_markdown
 import httpx
 from bs4 import BeautifulSoup
 from bs4.element import Tag as Bs4Tag  # type: ignore
+from urllib.parse import unquote, urlparse
+
+
+SCRAPER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 
 def clean_html(html_content: str) -> str:
@@ -112,6 +123,19 @@ def html_to_markdown(html_content: str) -> str:
     return convert_to_markdown(cleaned_html_str).strip()
 
 
+def get_fandom_page_title(url: str) -> str | None:
+    parsed_url = urlparse(url)
+    hostname = parsed_url.hostname or ""
+    if not hostname.endswith(".fandom.com") or not parsed_url.path.startswith("/wiki/"):
+        return None
+
+    page_title = parsed_url.path.removeprefix("/wiki/")
+    if not page_title:
+        return None
+
+    return unquote(page_title)
+
+
 class Scraper:
     """A simple scraper to fetch and parse web content."""
 
@@ -131,8 +155,41 @@ class Scraper:
         """
         cookies = {"ageVerified": "true"}
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(url, timeout=self.timeout, cookies=cookies)
-            response.raise_for_status()
+            response = await client.get(
+                url, timeout=self.timeout, cookies=cookies, headers=SCRAPER_HEADERS
+            )
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as error:
+                fandom_page_title = get_fandom_page_title(url)
+                if error.response.status_code != 403 or not fandom_page_title:
+                    raise
+
+                api_url = str(error.request.url.copy_with(path="/api.php", query=None))
+                api_response = await client.get(
+                    api_url,
+                    timeout=self.timeout,
+                    headers=SCRAPER_HEADERS,
+                    params={
+                        "action": "parse",
+                        "page": fandom_page_title,
+                        "prop": "text",
+                        "format": "json",
+                    },
+                )
+                api_response.raise_for_status()
+                html = api_response.json().get("parse", {}).get("text", {}).get("*")
+                if not isinstance(html, str) or not html:
+                    raise error
+
+                if clean:
+                    html = clean_html(html)
+                if type == "markdown":
+                    return html_to_markdown(html)
+                if pretty and type == "html":
+                    html = BeautifulSoup(html, "lxml").prettify()
+                return html.strip()
+
             content_type = response.headers.get("Content-Type", "")
             if "text/html" not in content_type:
                 raise ValueError(f"Invalid content type: {content_type}")
