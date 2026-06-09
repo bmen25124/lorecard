@@ -34,7 +34,7 @@ export function CredentialModal({ opened, onClose, credential, onSuccess }: Cred
   const updateCredentialMutation = useUpdateCredential();
   const testCredentialMutation = useTestCredential();
   const fetchModelsMutation = useFetchProviderModels();
-  const { data: providers, isLoading: isLoadingProviders } = useProviders();
+  const { data: providers, isLoading: isLoadingProviders } = useProviders(false);
 
   const [testModelName, setTestModelName] = useState('');
   const [localModels, setLocalModels] = useState<ModelInfo[] | null>(null);

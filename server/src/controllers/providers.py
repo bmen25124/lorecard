@@ -52,7 +52,7 @@ class ProviderController(Controller):
     path = "/providers"
 
     @get(path="/")
-    async def get_providers(self) -> List[ProviderInfo]:
+    async def get_providers(self, include_models: bool = True) -> List[ProviderInfo]:
         logger.debug("Listing all available providers and their models")
 
         all_credentials = await list_credentials()
@@ -97,8 +97,16 @@ class ProviderController(Controller):
                         # This provider is not configured via credential or env var.
                         pass
 
-                # --- If we have an instance, get models ---
                 if instance:
+                    if not include_models:
+                        return ProviderInfo(
+                            id=pid,
+                            name=pid.capitalize(),
+                            models=[],
+                            configured=True,
+                        )
+
+                    # --- If we have an instance, get models ---
                     try:
                         models = await instance.get_models()
                         is_configured = True
