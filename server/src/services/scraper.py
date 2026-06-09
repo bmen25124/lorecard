@@ -123,7 +123,7 @@ def html_to_markdown(html_content: str) -> str:
     return convert_to_markdown(cleaned_html_str).strip()
 
 
-def get_fandom_page_title(url: str) -> str | None:
+def get_fandom_api_url_and_page_title(url: str) -> tuple[str, str] | None:
     parsed_url = urlparse(url)
     hostname = parsed_url.hostname or ""
     if not hostname.endswith(".fandom.com") or not parsed_url.path.startswith("/wiki/"):
@@ -133,7 +133,34 @@ def get_fandom_page_title(url: str) -> str | None:
     if not page_title:
         return None
 
-    return unquote(page_title)
+    return f"{parsed_url.scheme}://{parsed_url.netloc}/api.php", unquote(page_title)
+
+
+async def get_fandom_api_html(
+    client: httpx.AsyncClient, url: str, timeout: int
+) -> str | None:
+    fandom_api_request = get_fandom_api_url_and_page_title(url)
+    if not fandom_api_request:
+        return None
+
+    api_url, fandom_page_title = fandom_api_request
+    api_response = await client.get(
+        api_url,
+        timeout=timeout,
+        headers=SCRAPER_HEADERS,
+        params={
+            "action": "parse",
+            "page": fandom_page_title,
+            "prop": "text",
+            "format": "json",
+        },
+    )
+    api_response.raise_for_status()
+    html = api_response.json().get("parse", {}).get("text", {}).get("*")
+    if not isinstance(html, str) or not html:
+        return None
+
+    return html
 
 
 class Scraper:
@@ -155,33 +182,12 @@ class Scraper:
         """
         cookies = {"ageVerified": "true"}
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(
-                url, timeout=self.timeout, cookies=cookies, headers=SCRAPER_HEADERS
-            )
             try:
-                response.raise_for_status()
-            except httpx.HTTPStatusError as error:
-                fandom_page_title = get_fandom_page_title(url)
-                if error.response.status_code != 403 or not fandom_page_title:
-                    raise
+                html = await get_fandom_api_html(client, url, self.timeout)
+            except (httpx.HTTPError, ValueError):
+                html = None
 
-                api_url = str(error.request.url.copy_with(path="/api.php", query=None))
-                api_response = await client.get(
-                    api_url,
-                    timeout=self.timeout,
-                    headers=SCRAPER_HEADERS,
-                    params={
-                        "action": "parse",
-                        "page": fandom_page_title,
-                        "prop": "text",
-                        "format": "json",
-                    },
-                )
-                api_response.raise_for_status()
-                html = api_response.json().get("parse", {}).get("text", {}).get("*")
-                if not isinstance(html, str) or not html:
-                    raise error
-
+            if html:
                 if clean:
                     html = clean_html(html)
                 if type == "markdown":
@@ -189,6 +195,26 @@ class Scraper:
                 if pretty and type == "html":
                     html = BeautifulSoup(html, "lxml").prettify()
                 return html.strip()
+
+            response = await client.get(
+                url, timeout=self.timeout, cookies=cookies, headers=SCRAPER_HEADERS
+            )
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as error:
+                if error.response.status_code != 403:
+                    raise
+
+                html = await get_fandom_api_html(client, url, self.timeout)
+                if html:
+                    if clean:
+                        html = clean_html(html)
+                    if type == "markdown":
+                        return html_to_markdown(html)
+                    if pretty and type == "html":
+                        html = BeautifulSoup(html, "lxml").prettify()
+                    return html.strip()
+                raise error
 
             content_type = response.headers.get("Content-Type", "")
             if "text/html" not in content_type:
