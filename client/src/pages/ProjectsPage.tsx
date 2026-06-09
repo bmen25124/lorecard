@@ -1,4 +1,4 @@
-import { Title, Table, Group, Text, ActionIcon, Badge, Stack, Skeleton, Button } from '@mantine/core';
+import { Title, Table, Group, Text, ActionIcon, Badge, Stack, Skeleton, Button, Pagination } from '@mantine/core';
 import { useProjects } from '../hooks/useProjects';
 import { IconEye, IconPencil, IconTrash } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
@@ -19,12 +19,16 @@ const statusColors: Record<string, string> = {
   failed: 'red',
 };
 
+const PAGE_SIZE = 50;
+
 export function ProjectsPage() {
-  const { data, isLoading, error } = useProjects();
+  const [activePage, setActivePage] = useState(1);
+  const { data, isLoading, error } = useProjects({ page: activePage, pageSize: PAGE_SIZE });
   const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const modals = useModals();
   const deleteProjectMutation = useDeleteProject();
+  const totalPages = data ? Math.max(1, Math.ceil(data.meta.total_items / data.meta.per_page)) : 1;
 
   const openDeleteModal = (project: Project) =>
     modals.openConfirmModal({
@@ -150,6 +154,17 @@ export function ProjectsPage() {
             )}
           </Table.Tbody>
         </Table>
+
+        {!isLoading && data && data.meta.total_items > PAGE_SIZE && (
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              Showing {(data.meta.current_page - 1) * data.meta.per_page + 1}-
+              {Math.min(data.meta.current_page * data.meta.per_page, data.meta.total_items)} of{' '}
+              {data.meta.total_items} projects
+            </Text>
+            <Pagination value={activePage} onChange={setActivePage} total={totalPages} />
+          </Group>
+        )}
       </Stack>
     </>
   );

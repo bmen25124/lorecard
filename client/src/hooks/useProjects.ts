@@ -1,17 +1,25 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import apiClient from '../services/api';
 import type { PaginatedResponse, Project, SingleResponse } from '../types';
 
-// Fetch all projects
-const fetchProjects = async (): Promise<PaginatedResponse<Project>> => {
-  const response = await apiClient.get('/projects');
+interface ProjectsQuery {
+  page: number;
+  pageSize: number;
+}
+
+const fetchProjects = async ({ page, pageSize }: ProjectsQuery): Promise<PaginatedResponse<Project>> => {
+  const offset = (page - 1) * pageSize;
+  const response = await apiClient.get('/projects', {
+    params: { limit: pageSize, offset },
+  });
   return response.data;
 };
 
-export const useProjects = () => {
+export const useProjects = ({ page, pageSize }: ProjectsQuery) => {
   return useQuery({
-    queryKey: ['projects'],
-    queryFn: fetchProjects,
+    queryKey: ['projects', { page, pageSize }],
+    queryFn: () => fetchProjects({ page, pageSize }),
+    placeholderData: keepPreviousData,
   });
 };
 
