@@ -87,6 +87,17 @@ https://github.com/user-attachments/assets/abd86ee8-b347-40f2-a768-cb83d5607d1f
 - You can see all API request logs on the API Requests modal. You can also see the project analytics on the Project Analytics modal.
 - You can edit all prompts on the _Global Templates_ page and _Project Edit_ modal.
 
+### Local OpenAI-compatible LLMs
+For local servers such as KoboldCpp, oobabooga/text-generation-webui, LM Studio, or Ollama, create an **Openai_compatible** credential and set the base URL to the server's OpenAI-compatible API root, not the chat completions endpoint. Examples:
+
+- `http://127.0.0.1:5001/v1`
+- `http://127.0.0.1:1234/v1`
+- `http://127.0.0.1:11434/v1`
+
+If Lorecard is running inside Docker and the LLM server is running on your host machine, use `host.docker.internal` instead of `127.0.0.1`, for example `http://host.docker.internal:5001/v1`.
+
+OpenAI-compatible credentials do not auto-list models, so seeing `0 models` is expected. Enter the model name manually in the project model field and in the credential test field.
+
 ### Input token usage
 #### Lorebook
 1. **Search Params:** Single LLM request. This is a very simple operation. Input token is very low.
