@@ -224,11 +224,19 @@ async def fetch_source_content(job: BackgroundJob, project: Project):
                     tx=tx,
                 )
 
+    final_status = JobStatus.failed if failed_count > 0 else JobStatus.completed
+    error_message = (
+        f"Failed to fetch {failed_count} of {total_sources} source(s)."
+        if failed_count > 0
+        else None
+    )
+
     async with (await get_db_connection()).transaction() as tx:
         await update_job_with_notification(
             job.id,
             UpdateBackgroundJob(
-                status=JobStatus.completed,
+                status=final_status,
+                error_message=error_message,
                 result=FetchSourceContentResult(
                     sources_fetched=processed_count, sources_failed=failed_count
                 ),

@@ -1,4 +1,17 @@
-import { Title, Table, Group, Text, ActionIcon, Badge, Stack, Skeleton, Button, Pagination } from '@mantine/core';
+import {
+  Title,
+  Table,
+  Group,
+  Text,
+  ActionIcon,
+  Badge,
+  Stack,
+  Skeleton,
+  Button,
+  Pagination,
+  TextInput,
+  Select,
+} from '@mantine/core';
 import { useProjects } from '../hooks/useProjects';
 import { IconEye, IconPencil, IconTrash } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
@@ -6,7 +19,7 @@ import { formatDate } from '../utils/formatDate';
 import { ProjectModal } from '../components/projects/ProjectModal';
 import { useDisclosure } from '@mantine/hooks';
 import { useState } from 'react';
-import type { Project } from '../types';
+import type { Project, ProjectStatus, ProjectType } from '../types';
 import { useModals } from '@mantine/modals';
 import { useDeleteProject } from '../hooks/useProjectMutations';
 
@@ -23,12 +36,29 @@ const PAGE_SIZE = 50;
 
 export function ProjectsPage() {
   const [activePage, setActivePage] = useState(1);
-  const { data, isLoading, error } = useProjects({ page: activePage, pageSize: PAGE_SIZE });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus | null>(null);
+  const [typeFilter, setTypeFilter] = useState<ProjectType | null>(null);
+  const [sortValue, setSortValue] = useState('updated_at:desc');
+  const [sortBy, sortDirection] = sortValue.split(':') as [
+    'name' | 'created_at' | 'updated_at' | 'status' | 'project_type',
+    'asc' | 'desc',
+  ];
+  const { data, isLoading, error } = useProjects({
+    page: activePage,
+    pageSize: PAGE_SIZE,
+    searchQuery: searchQuery.trim(),
+    status: statusFilter || undefined,
+    projectType: typeFilter || undefined,
+    sortBy,
+    sortDirection,
+  });
   const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const modals = useModals();
   const deleteProjectMutation = useDeleteProject();
   const totalPages = data ? Math.max(1, Math.ceil(data.meta.total_items / data.meta.per_page)) : 1;
+  const resetToFirstPage = () => setActivePage(1);
 
   const openDeleteModal = (project: Project) =>
     modals.openConfirmModal({
@@ -129,6 +159,70 @@ export function ProjectsPage() {
 
         {error && <Text color="red">Failed to load projects: {error.message}</Text>}
 
+        <Group align="end">
+          <TextInput
+            label="Search"
+            placeholder="Project name or ID"
+            value={searchQuery}
+            onChange={(event) => {
+              setSearchQuery(event.currentTarget.value);
+              resetToFirstPage();
+            }}
+            style={{ flex: 1, minWidth: 220 }}
+          />
+          <Select
+            label="Status"
+            placeholder="All statuses"
+            clearable
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value as ProjectStatus | null);
+              resetToFirstPage();
+            }}
+            data={[
+              { value: 'draft', label: 'Draft' },
+              { value: 'search_params_generated', label: 'Search params generated' },
+              { value: 'selector_generated', label: 'Selector generated' },
+              { value: 'links_extracted', label: 'Links extracted' },
+              { value: 'processing', label: 'Processing' },
+              { value: 'completed', label: 'Completed' },
+              { value: 'failed', label: 'Failed' },
+            ]}
+          />
+          <Select
+            label="Type"
+            placeholder="All types"
+            clearable
+            value={typeFilter}
+            onChange={(value) => {
+              setTypeFilter(value as ProjectType | null);
+              resetToFirstPage();
+            }}
+            data={[
+              { value: 'lorebook', label: 'Lorebook' },
+              { value: 'character', label: 'Character' },
+            ]}
+          />
+          <Select
+            label="Sort"
+            value={sortValue}
+            onChange={(value) => {
+              setSortValue(value || 'updated_at:desc');
+              resetToFirstPage();
+            }}
+            data={[
+              { value: 'updated_at:desc', label: 'Last updated: newest' },
+              { value: 'updated_at:asc', label: 'Last updated: oldest' },
+              { value: 'created_at:desc', label: 'Created: newest' },
+              { value: 'created_at:asc', label: 'Created: oldest' },
+              { value: 'name:asc', label: 'Name: A-Z' },
+              { value: 'name:desc', label: 'Name: Z-A' },
+              { value: 'status:asc', label: 'Status: A-Z' },
+              { value: 'project_type:asc', label: 'Type: A-Z' },
+            ]}
+          />
+        </Group>
+
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
@@ -147,7 +241,7 @@ export function ProjectsPage() {
               <Table.Tr>
                 <Table.Td colSpan={4}>
                   <Text c="dimmed" ta="center">
-                    No projects found. Create one to get started!
+                    No projects found.
                   </Text>
                 </Table.Td>
               </Table.Tr>

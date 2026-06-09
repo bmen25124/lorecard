@@ -173,16 +173,72 @@ async def count_projects() -> int:
     return result["count"] if result and "count" in result else 0
 
 
+def _build_project_filters(
+    search_query: Optional[str] = None,
+    status: Optional[ProjectStatus] = None,
+    project_type: Optional[ProjectType] = None,
+) -> tuple[str, List[Any]]:
+    conditions: List[str] = []
+    params: List[Any] = []
+
+    if search_query:
+        conditions.append('(LOWER(name) LIKE %s OR LOWER(id) LIKE %s)')
+        search_value = f"%{search_query.lower()}%"
+        params.extend([search_value, search_value])
+
+    if status:
+        conditions.append("status = %s")
+        params.append(status.value)
+
+    if project_type:
+        conditions.append("project_type = %s")
+        params.append(project_type.value)
+
+    if not conditions:
+        return "", params
+
+    return " WHERE " + " AND ".join(conditions), params
+
+
+async def count_filtered_projects(
+    search_query: Optional[str] = None,
+    status: Optional[ProjectStatus] = None,
+    project_type: Optional[ProjectType] = None,
+) -> int:
+    """Count projects after applying list filters."""
+    db = await get_db_connection()
+    where_clause, params = _build_project_filters(search_query, status, project_type)
+    query = f'SELECT COUNT(*) as count FROM "Project"{where_clause}'
+    result = await db.fetch_one(query, tuple(params))
+    return result["count"] if result and "count" in result else 0
+
+
 async def list_projects_paginated(
-    limit: int = 50, offset: int = 0
+    limit: int = 50,
+    offset: int = 0,
+    search_query: Optional[str] = None,
+    status: Optional[ProjectStatus] = None,
+    project_type: Optional[ProjectType] = None,
+    sort_by: str = "updated_at",
+    sort_direction: str = "desc",
 ) -> PaginatedResponse[Project]:
     """List all projects with pagination."""
     db = await get_db_connection()
-    query = 'SELECT * FROM "Project" ORDER BY created_at DESC LIMIT %s OFFSET %s'
-    results = await db.fetch_all(query, (limit, offset))
+    sort_columns = {
+        "name": "LOWER(name)",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "status": "status",
+        "project_type": "project_type",
+    }
+    order_column = sort_columns.get(sort_by, "updated_at")
+    order_direction = "ASC" if sort_direction.lower() == "asc" else "DESC"
+    where_clause, params = _build_project_filters(search_query, status, project_type)
+    query = f'SELECT * FROM "Project"{where_clause} ORDER BY {order_column} {order_direction}, created_at DESC LIMIT %s OFFSET %s'
+    results = await db.fetch_all(query, tuple([*params, limit, offset]))
     projects = [_deserialize_project(row) for row in results if row]
     projects = [p for p in projects if p]
-    total_items = await count_projects()
+    total_items = await count_filtered_projects(search_query, status, project_type)
     current_page = offset // limit + 1
 
     return PaginatedResponse(

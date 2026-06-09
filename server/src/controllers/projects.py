@@ -7,6 +7,8 @@ from typing import Optional
 from logging_config import get_logger
 from db.projects import (
     Project,
+    ProjectStatus,
+    ProjectType,
     CreateProject,
     UpdateProject,
     create_project as db_create_project,
@@ -52,11 +54,26 @@ class ProjectController(Controller):
 
     @get("/")
     async def list_projects(
-        self, limit: int = 50, offset: int = 0
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        q: Optional[str] = None,
+        status: Optional[ProjectStatus] = None,
+        project_type: Optional[ProjectType] = None,
+        sort_by: str = "updated_at",
+        sort_direction: str = "desc",
     ) -> PaginatedResponse[Project]:
         """List all projects with pagination."""
         logger.debug("Listing all projects")
-        return await db_list_projects_paginated(limit, offset)
+        return await db_list_projects_paginated(
+            limit=limit,
+            offset=offset,
+            search_query=q,
+            status=status,
+            project_type=project_type,
+            sort_by=sort_by,
+            sort_direction=sort_direction,
+        )
 
     @get("/{project_id:str}/links")
     async def list_project_links(
