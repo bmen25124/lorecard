@@ -34,3 +34,16 @@ def extract_json_from_code_block(text: str) -> Optional[str]:
     if match:
         return match.group(0).strip()
     return None
+
+
+def parse_json_content(content: Any) -> Any:
+    """Parse provider JSON content, including occasionally double-encoded JSON."""
+    parsed = content
+    for _ in range(2):
+        if not isinstance(parsed, str):
+            break
+        try:
+            parsed = json.loads(parsed)
+        except json.JSONDecodeError:
+            break
+    return parsed

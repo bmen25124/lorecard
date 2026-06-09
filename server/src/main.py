@@ -262,7 +262,7 @@ async def get_app_info() -> AppInfo:
     )
 
 
-def create_app():
+def create_app(close_db_on_shutdown: bool = True):
     api_router = Router(
         path="/api",
         exception_handlers={
@@ -305,7 +305,7 @@ def create_app():
             recover_stale_datas,
             create_credentials_from_env,
         ],
-        on_shutdown=[close_database],
+        on_shutdown=[close_database] if close_db_on_shutdown else [],
         static_files_config=None,
     )
 

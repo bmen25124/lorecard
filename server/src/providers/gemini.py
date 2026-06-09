@@ -18,7 +18,11 @@ from providers.index import (
     register_provider,
     ModelInfo,
 )
-from providers.utils import extract_json_from_code_block, generate_example_from_schema
+from providers.utils import (
+    extract_json_from_code_block,
+    generate_example_from_schema,
+    parse_json_content,
+)
 from services.templates import create_messages_from_template
 
 logger = get_logger(__name__)
@@ -321,9 +325,8 @@ class GeminiClient(BaseProvider):
 
             final_content: Union[str, Dict] = content_text
             if request.response_format:
-                try:
-                    final_content = json.loads(content_text)
-                except json.JSONDecodeError:
+                final_content = parse_json_content(content_text)
+                if isinstance(final_content, str):
                     logger.warning(
                         f"Gemini response was not valid JSON despite being asked. Raw: {content_text}"
                     )
@@ -463,7 +466,7 @@ class GeminiClient(BaseProvider):
             if not json_str:
                 raise ValueError("No JSON code block found in the response.")
 
-            parsed_content = json.loads(json_str)
+            parsed_content = parse_json_content(json_str)
 
             usage = ChatCompletionUsage(
                 prompt_tokens=0, completion_tokens=0, total_tokens=0, cost=0.0

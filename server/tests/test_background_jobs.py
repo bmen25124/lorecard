@@ -672,7 +672,14 @@ async def test_discover_and_crawl_with_url_exclusions(
     # 2b. Update project status
     await client_test.patch(
         f"/api/projects/{project_id}",
-        json={"status": "search_params_generated"},
+        json={
+            "search_params": {
+                "purpose": "To gather detailed location information from Skyrim.",
+                "extraction_notes": "Focus extraction on location names and useful lore details.",
+                "criteria": "Page must describe a Skyrim location.",
+            },
+            "status": "search_params_generated",
+        },
     )
 
     # Act: Start and process the job

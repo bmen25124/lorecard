@@ -19,7 +19,11 @@ from providers.index import (
     register_provider,
     ModelInfo,
 )
-from providers.utils import extract_json_from_code_block, generate_example_from_schema
+from providers.utils import (
+    extract_json_from_code_block,
+    generate_example_from_schema,
+    parse_json_content,
+)
 from services.templates import create_messages_from_template
 
 logger = get_logger(__name__)
@@ -216,10 +220,7 @@ class OpenRouterClient(BaseProvider):
             if api_response.choices:
                 content = api_response.choices[0].message.content
 
-            try:
-                content = json.loads(content) if content else None
-            except json.JSONDecodeError:
-                pass
+            content = parse_json_content(content) if content else None
 
             return ChatCompletionResponse(
                 id=api_response.id,
@@ -302,7 +303,7 @@ class OpenRouterClient(BaseProvider):
                 if not json_str:
                     raise ValueError("No JSON code block found in the response.")
 
-                parsed_content = json.loads(json_str)
+                parsed_content = parse_json_content(json_str)
                 break
 
             except httpx.HTTPStatusError as e:

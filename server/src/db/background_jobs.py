@@ -98,7 +98,7 @@ class DiscoverAndCrawlSourcesResult(BaseModel):
     existing_links: List[str]
     new_sources_created: int
     selectors_generated: int
-    sources_failed: List[UUID] = []
+    sources_failed: List[str] = []
 
     @field_validator("sources_failed", mode="before")
     def serialize_sources_failed(cls, v):

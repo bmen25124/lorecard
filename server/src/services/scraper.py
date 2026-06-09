@@ -1,9 +1,10 @@
 from typing import Literal
+from html import escape
 from html_to_markdown import convert_to_markdown
 import httpx
 from bs4 import BeautifulSoup
 from bs4.element import Tag as Bs4Tag  # type: ignore
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
 
 SCRAPER_HEADERS = {
@@ -136,6 +137,65 @@ def get_fandom_api_url_and_page_title(url: str) -> tuple[str, str] | None:
     return f"{parsed_url.scheme}://{parsed_url.netloc}/api.php", unquote(page_title)
 
 
+async def get_fandom_category_html(
+    client: httpx.AsyncClient,
+    api_url: str,
+    category_title: str,
+    original_url: str,
+    timeout: int,
+) -> str | None:
+    parsed_url = urlparse(original_url)
+    query_params = parse_qs(parsed_url.query)
+
+    params = {
+        "action": "query",
+        "list": "categorymembers",
+        "cmtitle": category_title,
+        "cmlimit": "50",
+        "format": "json",
+    }
+    if cmcontinue := query_params.get("cmcontinue", [None])[0]:
+        params["cmcontinue"] = cmcontinue
+
+    response = await client.get(
+        api_url,
+        timeout=timeout,
+        headers=SCRAPER_HEADERS,
+        params=params,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    members = payload.get("query", {}).get("categorymembers", [])
+
+    if not members:
+        return None
+
+    links = []
+    for member in members:
+        title = member.get("title")
+        if not isinstance(title, str) or title.startswith("Category:"):
+            continue
+
+        href = f"/wiki/{quote(title.replace(' ', '_'), safe='():_')}"
+        links.append(
+            '<a class="category-page__member-link" '
+            f'href="{escape(href, quote=True)}">{escape(title)}</a>'
+        )
+
+    if not links:
+        return None
+
+    if next_continue := payload.get("continue", {}).get("cmcontinue"):
+        query_params["cmcontinue"] = [next_continue]
+        next_url = f"{parsed_url.path}?{urlencode(query_params, doseq=True)}"
+        links.append(
+            '<a class="category-page__pagination-next" '
+            f'href="{escape(next_url, quote=True)}">Next page</a>'
+        )
+
+    return '<div class="category-page__members">' + "\n".join(links) + "</div>"
+
+
 async def get_fandom_api_html(
     client: httpx.AsyncClient, url: str, timeout: int
 ) -> str | None:
@@ -144,6 +204,11 @@ async def get_fandom_api_html(
         return None
 
     api_url, fandom_page_title = fandom_api_request
+    if fandom_page_title.lower().startswith("category:"):
+        return await get_fandom_category_html(
+            client, api_url, fandom_page_title, url, timeout
+        )
+
     api_response = await client.get(
         api_url,
         timeout=timeout,

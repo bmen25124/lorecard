@@ -46,7 +46,7 @@ async def db(db_type: str, postgres_container: PostgresContainer, tmp_path_facto
 
 @pytest_asyncio.fixture(scope="function")
 async def client_test(db: AsyncDB):
-    app = create_app()
+    app = create_app(close_db_on_shutdown=False)
     async with db.transaction():
         async with AsyncTestClient(app) as client:
             yield client
